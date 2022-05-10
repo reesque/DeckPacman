@@ -1,5 +1,6 @@
 # DeckPacman
 
+```
 usage: deckpacman [-h] [--install INSTALL] [--add ADD] [--installAll] [--clear] [--list]
 
 Install and store packages, designed for Steam Deck to run after firmware update
@@ -11,3 +12,4 @@ optional arguments:
   --installAll       Install all stored packages
   --clear            Clear list of packages
   --list             List all stored packages
+```
