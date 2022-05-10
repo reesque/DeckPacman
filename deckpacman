@@ -1,0 +1,132 @@
+#!/usr/bin/python3
+
+"""
+@Author Khoa Nguyen (Risky)
+@Date 2022/05/09
+@Links https://github.com/akhoanv/DeckPacman
+"""
+
+import argparse
+import enum
+import os
+import json
+
+
+def main():
+    pm = PackageManager()
+
+    arg_parser = argparse.ArgumentParser(description='Install and store packages, designed for Steam Deck to run \
+                                                     after firmware update')
+    arg_parser.add_argument('--install', type=str, help="Package to be installed")
+    arg_parser.add_argument('--add', type=str, help="Add package to list, skip installation")
+    arg_parser.add_argument('--installAll', action='store_true', help="Install all stored packages")
+    arg_parser.add_argument('--clear', action='store_true', help="Clear list of packages")
+    arg_parser.add_argument('--list', action='store_true', help="List all stored packages")
+
+    arg_parser.set_defaults(installAll=False)
+    arg_parser.set_defaults(clear=False)
+    arg_parser.set_defaults(list=False)
+
+    args = arg_parser.parse_args()
+    if args.install is not None:
+        pm.install(chooseType(), args.install)
+        exit(0)
+    elif args.add is not None:
+        pm.addPackage(chooseType(), args.add)
+        exit(0)
+    elif args.installAll:
+        pm.installAll(True)
+        exit(0)
+    elif args.clear:
+        pm.clearPackages()
+        exit(0)
+    elif args.list:
+        print(pm.listPackages())
+        exit(0)
+
+
+def chooseType():
+    return input("1: Default\n2: AUR\n3: Flatpak\nChoose type of package: ")
+
+
+class PackageManager:
+    def __init__(self):
+        self.DATA_FILE = './packages.json'
+        self.package_info = {
+            "packages": {}
+        }
+
+        self._parsePackage()
+
+    def installAll(self, isInitial):
+        if isInitial:
+            print("Disabling SteamOS safe-guard...")
+            os.system("steamos-readonly disable")
+
+            print("\nInitializing keychain...")
+            os.system("pacman-key --init")
+            os.system("pacman-key --populate archlinux holo")
+
+            print("\nInstalling build tools...")
+            os.system("pacman -S --needed --noconfirm base-devel")
+
+        for pkg in self.package_info["packages"].keys():
+            print("\nInstalling package " + pkg + "...")
+            os.system("pacman -S " + pkg)
+
+    def install(self, pkg_type, package):
+        if int(pkg_type) == int(PackageType.DEFAULT.value):
+            os.system("pacman -S " + package)
+
+        self.addPackage(pkg_type, package)
+
+    def addPackage(self, pkg_type, package):
+        pkg_prop = {}
+        pkg_name = ""
+
+        if int(pkg_type) == int(PackageType.DEFAULT.value):
+            pkg_name = package
+            pkg_prop["type"] = PackageType.DEFAULT.value
+
+        if pkg_name not in self.package_info["packages"] or self.package_info["packages"][pkg_name]["type"] == pkg_type.value:
+            self.package_info["packages"][pkg_name] = pkg_prop
+            self._exportJson()
+
+    def listPackages(self):
+        pkgStr = "List of packages:\n"
+
+        for pkg in self.package_info["packages"].keys():
+            pkgStr = pkgStr + pkg + " [" + PackageType(int(self.package_info["packages"][pkg]["type"])).name + "]\n"
+
+        return pkgStr
+
+    def clearPackages(self):
+        self.package_info = {
+            "packages": {}
+        }
+
+        print("List of packages were cleared\n")
+
+        self._exportJson()
+
+    def _parsePackage(self):
+        if not os.path.exists(self.DATA_FILE):
+            self._exportJson()
+
+        f = open(self.DATA_FILE)
+        self.package_info = json.load(f)
+
+        f.close()
+
+    def _exportJson(self):
+        with open(self.DATA_FILE, "w") as output:
+            json.dump(self.package_info, output)
+
+
+class PackageType(enum.Enum):
+    DEFAULT = 1
+    AUR = 2
+    FLATPAK = 3
+
+if __name__ == "__main__":
+    main()
