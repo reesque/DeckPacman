@@ -76,7 +76,7 @@ class PackageManager:
         for pkg in self.package_info["packages"].keys():
             print("\nInstalling package " + pkg + "...")
             if int(self.package_info["packages"][pkg]["type"]) == int(PackageType.DEFAULT.value):
-                subprocess.run("pacman -S " + pkg, stdout=subprocess.PIPE, shell=True)
+                subprocess.run("pacman -S --noconfirm " + pkg, stdout=subprocess.PIPE, shell=True)
             elif int(self.package_info["packages"][pkg]["type"]) == int(PackageType.AUR.value):
                 # Create AUR dir for repositories
                 if not os.path.isdir("./AUR"):
@@ -96,7 +96,7 @@ class PackageManager:
 
         if int(pkg_type) == int(PackageType.DEFAULT.value):
             name = package
-            os.system("pacman -S " + package)
+            os.system("pacman -S --noconfirm " + package)
         elif int(pkg_type) == int(PackageType.AUR.value):
             pkgChooser = self._chooseAUR(package)
             name = pkgChooser["Name"]
@@ -106,7 +106,7 @@ class PackageManager:
             if not os.path.isdir("./AUR"):
                 os.makedirs("./AUR", 0o770)
 
-            subprocess.run("cd ./AUR; wget " + self.AUR_URL + self.package_info["packages"][name]["url"] +
+            subprocess.run("cd ./AUR; wget " + self.AUR_URL + pkgChooser["URLPath"] +
                            "; tar -xvf " + name + ".tar.gz; cd " + name + "; makepkg; " +
                            "sudo pacman -U --noconfirm *.pkg.tar.zst", stdout=subprocess.PIPE, shell=True)
 
@@ -131,7 +131,7 @@ class PackageManager:
                 pkg_name = package
                 pkg_prop["url"] = url
 
-        if pkg_name not in self.package_info["packages"] or self.package_info["packages"][pkg_name]["type"] == pkg_type.value:
+        if pkg_name not in self.package_info["packages"] or int(self.package_info["packages"][pkg_name]["type"]) == pkg_type:
             self.package_info["packages"][pkg_name] = pkg_prop
             self._exportJson()
 
