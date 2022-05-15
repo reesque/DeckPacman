@@ -14,6 +14,7 @@ import json
 import requests
 import shutil
 
+
 def main():
     pm = PackageManager()
 
@@ -24,10 +25,12 @@ def main():
     arg_parser.add_argument('--installAll', action='store_true', help="Install all stored packages")
     arg_parser.add_argument('--clear', action='store_true', help="Clear list of packages")
     arg_parser.add_argument('--list', action='store_true', help="List all stored packages")
+    arg_parser.add_argument('--initialize', action='store_true', help="Initialize pacman, use with installAll argument")
 
     arg_parser.set_defaults(installAll=False)
     arg_parser.set_defaults(clear=False)
     arg_parser.set_defaults(list=False)
+    arg_parser.set_defaults(initialize=False)
 
     args = arg_parser.parse_args()
     if args.install is not None:
@@ -37,7 +40,7 @@ def main():
         pm.addPackage(choosePkgType(), args.add)
         exit(0)
     elif args.installAll:
-        pm.installAll(True)
+        pm.installAll(args.initialize)
         exit(0)
     elif args.clear:
         pm.clearPackages()
@@ -48,7 +51,11 @@ def main():
 
 
 def choosePkgType():
-    return input("1: Default\n2: AUR\n3: Flatpak\nChoose type of package (1 - 3): ")
+    # Loop until a valid choice is given
+    while True:
+        choice = input("1: Default\n2: AUR\nChoose type of package (1 - 2): ")
+        if choice.isnumeric() and int(choice) in range(1, 3):
+            return int(choice)
 
 
 class PackageManager:
@@ -61,8 +68,12 @@ class PackageManager:
 
         self._parsePackage()
 
-    def installAll(self, isInitial):
-        if isInitial:
+        # Clean temp directory, might be leftover from cancelled or failed installation
+        if os.path.isdir("./AUR"):
+            shutil.rmtree('./AUR')
+
+    def installAll(self, initialize):
+        if initialize:
             print("Disabling SteamOS safe-guard...")
             subprocess.run("steamos-readonly disable", stdout=subprocess.PIPE, shell=True)
 
@@ -82,13 +93,12 @@ class PackageManager:
                 if not os.path.isdir("./AUR"):
                     os.makedirs("./AUR", 0o770)
 
+                # Chain of commands for AUR installation
                 subprocess.run("cd ./AUR; wget " + self.AUR_URL + self.package_info["packages"][pkg]["url"] +
                                 "; tar -xvf " + pkg + ".tar.gz; cd " + pkg + "; makepkg; " +
                                 "sudo pacman -U --noconfirm *.pkg.tar.zst", stdout=subprocess.PIPE, shell=True)
 
                 shutil.rmtree('./AUR')
-
-
 
     def install(self, pkg_type, package):
         name = None
@@ -106,6 +116,7 @@ class PackageManager:
             if not os.path.isdir("./AUR"):
                 os.makedirs("./AUR", 0o770)
 
+            # Chain of commands for AUR installation
             subprocess.run("cd ./AUR; wget " + self.AUR_URL + pkgChooser["URLPath"] +
                            "; tar -xvf " + name + ".tar.gz; cd " + name + "; makepkg; " +
                            "sudo pacman -U --noconfirm *.pkg.tar.zst", stdout=subprocess.PIPE, shell=True)
@@ -131,6 +142,7 @@ class PackageManager:
                 pkg_name = package
                 pkg_prop["url"] = url
 
+        # lazy condition eval
         if pkg_name not in self.package_info["packages"] or int(self.package_info["packages"][pkg_name]["type"]) == pkg_type:
             self.package_info["packages"][pkg_name] = pkg_prop
             self._exportJson()
@@ -180,15 +192,16 @@ class PackageManager:
                 "   |_ Votes: " + str(aurData["results"][i]["NumVotes"]) + "\n\n"
 
         prompt = prompt + "Choose package from list (0 - " + str(aurData["resultcount"] - 1) + "): "
-        choice = input(prompt)
-
-        return aurData["results"][int(choice)]
+        while True:
+            choice = input(prompt)
+            if choice.isnumeric() and int(choice) in range(1, aurData["resultcount"] + 1):
+                return aurData["results"][int(choice)]
 
 
 class PackageType(enum.Enum):
     DEFAULT = 1
     AUR = 2
-    FLATPAK = 3
+
 
 if __name__ == "__main__":
     main()
